@@ -352,14 +352,19 @@ func download(ctx context.Context, id string, lastModified time.Time) (_ io.Read
 		}
 		defer resp.Body.Close()
 
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("reading body: %w", err)
+		}
+
 		if resp.StatusCode/100 != 2 {
-			return time.Time{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+			return time.Time{}, fmt.Errorf("unexpected status code: %d -- %v", resp.StatusCode, string(b))
 		}
 
 		var body struct {
 			Modified int64 `json:"modified"`
 		}
-		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		if err := json.Unmarshal(b, &body); err != nil {
 			return time.Time{}, fmt.Errorf("unmarshaling body: %w", err)
 		}
 
@@ -389,13 +394,13 @@ func download(ctx context.Context, id string, lastModified time.Time) (_ io.Read
 			}
 			defer resp.Body.Close()
 
-			if resp.StatusCode/100 != 2 {
-				return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-			}
-
 			b, err := io.ReadAll(resp.Body)
 			if err != nil {
 				return "", fmt.Errorf("reading body: %w", err)
+			}
+
+			if resp.StatusCode/100 != 2 {
+				return "", fmt.Errorf("unexpected status code: %d -- %v", resp.StatusCode, string(b))
 			}
 
 			var body struct {
@@ -405,6 +410,9 @@ func download(ctx context.Context, id string, lastModified time.Time) (_ io.Read
 				return "", fmt.Errorf("unmarshaling body: %w", err)
 			}
 
+			if body.ResultURL == "" {
+				return "", fmt.Errorf("missing result URL: %v", string(b))
+			}
 			return body.ResultURL, nil
 		}()
 		if err != nil {
