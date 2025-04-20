@@ -379,49 +379,46 @@ func download(ctx context.Context, id string, lastModified time.Time) (_ io.Read
 
 	log.Println("downloading", id, "last modified", lastModified, "current modified", currentModified)
 
-	deadline := time.Now().Add(5 * time.Minute)
+	deadline := time.Now().Add(10 * time.Minute)
 
 	var resultURL string
 	for time.Now().Before(deadline) {
-		u, err := func() (string, error) {
+		u, body, err := func() (string, []byte, error) {
 			req, err := http.NewRequestWithContext(ctx, "GET", "https://hub.arcgis.com/api/download/v1/items/"+id+"/csv?redirect=false&layers=0", nil)
 			if err != nil {
-				return "", fmt.Errorf("creating request: %w", err)
+				return "", nil, fmt.Errorf("creating request: %w", err)
 			}
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
-				return "", fmt.Errorf("executing request: %w", err)
+				return "", nil, fmt.Errorf("executing request: %w", err)
 			}
 			defer resp.Body.Close()
 
 			b, err := io.ReadAll(resp.Body)
 			if err != nil {
-				return "", fmt.Errorf("reading body: %w", err)
+				return "", nil, fmt.Errorf("reading body: %w", err)
 			}
 
 			if resp.StatusCode/100 != 2 {
-				return "", fmt.Errorf("unexpected status code: %d -- %v", resp.StatusCode, string(b))
+				return "", nil, fmt.Errorf("unexpected status code: %d -- %v", resp.StatusCode, string(b))
 			}
 
 			var body struct {
 				ResultURL string `json:"resultUrl"`
 			}
 			if err := json.Unmarshal(b, &body); err != nil {
-				return "", fmt.Errorf("unmarshaling body: %w", err)
+				return "", nil, fmt.Errorf("unmarshaling body: %w", err)
 			}
 
-			if body.ResultURL == "" {
-				return "", fmt.Errorf("missing result URL: %v", string(b))
-			}
-			return body.ResultURL, nil
+			return body.ResultURL, b, nil
 		}()
 		if err != nil {
 			return nil, time.Time{}, fmt.Errorf("downloading data: %w", err)
 		}
 		if u == "" {
-			log.Println("waiting", id)
+			log.Println("waiting", id, "body", string(body))
 			select {
-			case <-time.After(5 * time.Second):
+			case <-time.After(10 * time.Second):
 			case <-ctx.Done():
 				return nil, time.Time{}, ctx.Err()
 			}

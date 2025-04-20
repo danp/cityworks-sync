@@ -2,7 +2,7 @@ module github.com/danp/cityworks-sync
 
 go 1.25
 
-require github.com/ncruces/go-sqlite3 v0.24.1
+require github.com/ncruces/go-sqlite3 v0.25.0
 
 require (
 	github.com/ncruces/julianday v1.0.0 // indirect
